@@ -81,7 +81,9 @@ module lottery::game {
     }
 
     // Anyone can buyticket after getting a playerRecord
-    public fun buyTicket(lottery: &mut Lottery, playerRecord: &mut PlayerRecord, noOfTickets: u64, amount: Coin<SUI>, clock: &Clock ) {
+    public fun buyTicket(lottery: &mut Lottery, playerRecord: &mut PlayerRecord, 
+        noOfTickets: u64, amount: &mut Coin<SUI>, clock: &Clock, ctx: &mut TxContext ) {
+
         // check if user is calling from right lottery
         assert!(object::id(lottery) == playerRecord.lotteryId, EWrongLottery);
 
@@ -95,10 +97,12 @@ module lottery::game {
         let amountRequired = lottery.ticketPrice * noOfTickets;
 
         // check that coin supplied is equal to the total amount required
-        assert!(coin::value(&amount) >= amountRequired, EPaymentTooLow);
+        assert!(coin::value(amount) >= amountRequired, EPaymentTooLow);
+
+        let paid = coin::split(amount, amountRequired, ctx);
 
         // add the amount to the lottery's balance
-        let coin_balance = coin::into_balance(amount);
+        let coin_balance = coin::into_balance(paid);
         balance::join(&mut lottery.reward, coin_balance);
 
         // increment no of tickets bought and update players ticket record
@@ -208,8 +212,9 @@ module lottery::game {
         let ticketPrice = getTicketPrice(&lottery);
         let amountToPay = ticketPrice * noOfTickets;
         let amountCoin = coin::mint_for_testing<SUI>( amountToPay, ts::ctx(ts));
-        buyTicket(&mut lottery, &mut playerRecord, noOfTickets, amountCoin, clock);
+        buyTicket(&mut lottery, &mut playerRecord, noOfTickets, &mut amountCoin, clock, ts::ctx(ts));
         ts::return_shared(lottery);
+        coin::burn_for_testing(amountCoin);
         ts::return_to_sender(ts, playerRecord);
     }
 
